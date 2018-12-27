@@ -1,0 +1,23 @@
+version: "3.4"
+services:
+  build:
+    build:
+      context: ../../
+      dockerfile: misc/docker/Dockerfile
+      target: base
+    image: docker.rucciva.one/rucciva/unix-logger:1.0.0-dev
+    volumes:
+      - ../../:${PWD}/../../
+      - ${GOPATH:-/go}/pkg/mod:/go/pkg/mod
+      - ${GOCACHE:-../../.go/build}:${PWD}/../../.go/build
+    environment:
+      - GOCACHE=${PWD}/../../.go/build
+    working_dir: ${PWD}/../../
+    command: go build -o unix-logger -v git.rucciva.one/rucciva/unix-logger/cmd 
+  
+  unix-logger:
+    build:
+      context: ../../
+      dockerfile: misc/docker/Dockerfile
+    image: docker.rucciva.one/rucciva/unix-logger:1.0.0
+
