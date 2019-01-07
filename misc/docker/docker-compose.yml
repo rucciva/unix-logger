@@ -20,4 +20,6 @@ services:
       context: ../../
       dockerfile: misc/docker/Dockerfile
     image: docker.rucciva.one/rucciva/unix-logger:1.0.0
-
+    environment:
+      - UNIX_LOGGER_FILE_MODE=0760
+      - UNIX_LOGGER_FILE_OWNER=0:0

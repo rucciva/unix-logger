@@ -2,11 +2,14 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"log"
 	"net"
 	"os"
 	"os/signal"
+	"os/user"
 	"strconv"
+	"strings"
 	"syscall"
 
 	"git.rucciva.one/rucciva/unix-logger/writer"
@@ -29,22 +32,47 @@ func getEnvOrDefaultInt(name string, def int) int {
 }
 
 type unixListener struct {
-	path    string
-	queue   chan bool
-	writter writer.Writer
+	path     string
+	fileMode os.FileMode
+	uid      int
+	gid      int
+	queue    chan bool
+	writter  writer.Writer
 
 	listener net.Listener
 }
 
-func newUnixListener() *unixListener {
+func newUnixListener() (*unixListener, error) {
 	path := getEnvOrDefault("UNIX_LOGGER_PATH", "/var/run/unix_logger.sock")
+
+	user, err := user.Current()
+	if err != nil {
+		return nil, err
+	}
+	owner := getEnvOrDefault("UNIX_LOGGER_FILE_OWNER", user.Uid+":"+user.Gid)
+	id := strings.Split(owner, ":")
+	if len(id) != 2 {
+		return nil, errors.New("invalid UNIX_LOGGER_FILE_OWNER env. Expected <uid>:<gid>")
+	}
+	uid, _ := strconv.Atoi(id[0])
+	gid, _ := strconv.Atoi(id[1])
+
+	mode := getEnvOrDefault("UNIX_LOGGER_FILE_MODE", "0700")
+	m, err := strconv.ParseUint(mode, 0, 32)
+	if err != nil {
+		return nil, err
+	}
+
 	queueSize := getEnvOrDefaultInt("UNIX_LOGGER_MAX_CONNECTION", 1024)
 	w, _ := writer.NewStdoutWriter()
 	return &unixListener{
-		path:    path,
-		queue:   make(chan bool, queueSize),
-		writter: w,
-	}
+		path:     path,
+		fileMode: os.FileMode(m),
+		uid:      uid,
+		gid:      gid,
+		queue:    make(chan bool, queueSize),
+		writter:  w,
+	}, nil
 }
 
 func (u *unixListener) dispatch(c net.Conn) {
@@ -75,7 +103,12 @@ func (u *unixListener) ListenAndServe() (err error) {
 	if err != nil {
 		return err
 	}
-
+	if err := os.Chmod(u.path, u.fileMode); err != nil {
+		return err
+	}
+	if err := os.Chown(u.path, u.uid, u.gid); err != nil {
+		return err
+	}
 	for {
 		c, err := u.listener.Accept()
 		if err != nil {
@@ -95,7 +128,10 @@ func main() {
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
-	u := newUnixListener()
+	u, err := newUnixListener()
+	if err != nil {
+		log.Fatal("new_unix_listener_failed", err)
+	}
 	go func() {
 		<-sigs
 		u.Close()
