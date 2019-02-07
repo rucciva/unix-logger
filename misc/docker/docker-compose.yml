@@ -5,7 +5,7 @@ services:
       context: ../../
       dockerfile: misc/docker/Dockerfile
       target: base
-    image: docker.rucciva.one/rucciva/unix-logger:1.0.0-dev
+    image: rucciva/unix-logger:1.0.0-dev
     volumes:
       - ../../:${PWD}/../../
       - ${GOPATH:-/go}/pkg/mod:/go/pkg/mod
@@ -19,7 +19,7 @@ services:
     build:
       context: ../../
       dockerfile: misc/docker/Dockerfile
-    image: docker.rucciva.one/rucciva/unix-logger:1.0.0
+    image: rucciva/unix-logger:1.0.0
     volumes:
       - ./volumes/unix-logger/var/run:/var/run
     environment:
